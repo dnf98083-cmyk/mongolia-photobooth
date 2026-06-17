@@ -8,8 +8,13 @@ export default function Home() {
   const router = useRouter()
   const [localIP, setLocalIP] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isVercel, setIsVercel] = useState(false)
 
   useEffect(() => {
+    if (window.location.hostname.includes('vercel.app')) {
+      setIsVercel(true)
+      return
+    }
     fetch('/api/local-ip')
       .then(r => r.json())
       .then(d => setLocalIP(d.ip))
@@ -23,6 +28,26 @@ export default function Home() {
   }
 
   const serverUrl = localIP ? `https://${localIP}:3000` : ''
+
+  if (isVercel) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-purple-900 via-pink-800 to-rose-700 flex flex-col items-center justify-center p-6 gap-6 text-center">
+        <div className="text-white">
+          <p className="text-pink-200 text-sm tracking-widest mb-2">자양교회 몽골 선교</p>
+          <h1 className="text-5xl font-black drop-shadow-lg">인생네컷</h1>
+        </div>
+        <div className="bg-white/10 backdrop-blur rounded-3xl p-8 max-w-sm">
+          <p className="text-4xl mb-4">📷</p>
+          <p className="text-white font-bold text-lg mb-2">촬영은 노트북에서!</p>
+          <p className="text-pink-200 text-sm leading-relaxed">
+            이 페이지는 사진 다운로드 전용입니다.<br />
+            촬영하려면 노트북의 핫스팟에 연결 후<br />
+            QR코드를 스캔하세요.
+          </p>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-purple-900 via-pink-800 to-rose-700 flex flex-col items-center justify-center p-6 gap-8">
