@@ -31,8 +31,7 @@ export async function uploadStripToCloud(
 
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
     const imageUrl = data.publicUrl
-    const downloadPageUrl = 'https://cdn.jsdelivr.net/gh/dnf98083-cmyk/mongolia-photobooth@main/public/download-page.html'
-    return `${downloadPageUrl}?img=${encodeURIComponent(imageUrl)}`
+    return `https://mongolia-photobooth.vercel.app/download/${sessionId}?cloudUrl=${encodeURIComponent(imageUrl)}`
   } catch {
     return null
   }
