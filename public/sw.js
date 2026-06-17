@@ -1,39 +1,39 @@
-const CACHE = 'incutbooth-v1'
-const PRECACHE = [
-  '/',
-  '/manifest.json',
-]
+const CACHE = 'incutbooth-v2'
 
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(PRECACHE))
-  )
+self.addEventListener('install', () => {
   self.skipWaiting()
 })
 
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+      Promise.all(keys.map(k => caches.delete(k)))
     )
   )
   self.clients.claim()
 })
 
 self.addEventListener('fetch', e => {
-  // API 요청과 영상 업로드는 캐시 안 함
-  if (e.request.url.includes('/api/') || e.request.method !== 'GET') {
+  const url = new URL(e.request.url)
+
+  // Next.js 내부, API, 개발 관련 경로는 무조건 네트워크
+  if (
+    url.pathname.startsWith('/_next/') ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.includes('webpack-hmr') ||
+    e.request.method !== 'GET'
+  ) {
     return
   }
 
+  // 나머지만 캐시 (앱 페이지들)
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached
-      return fetch(e.request).then(res => {
+    fetch(e.request)
+      .then(res => {
         const clone = res.clone()
         caches.open(CACHE).then(c => c.put(e.request, clone))
         return res
-      }).catch(() => cached)
-    })
+      })
+      .catch(() => caches.match(e.request))
   )
 })

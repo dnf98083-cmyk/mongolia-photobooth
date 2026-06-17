@@ -42,3 +42,5 @@ next-env.d.ts
 
 # 촬영된 사진/영상 파일 (로컬에만 저장)
 /uploads/sessions/
+
+certificates

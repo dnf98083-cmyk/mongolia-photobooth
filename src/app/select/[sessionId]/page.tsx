@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import QRCodeDisplay from '@/components/QRCodeDisplay'
+import { isOnline, uploadStripToCloud } from '@/lib/cloudStorage'
 
 const STRIP_W = 420
 const PHOTO_W = 380
@@ -25,6 +26,7 @@ export default function SelectPage() {
   const [qrUrl, setQrUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [localIP, setLocalIP] = useState('')
+  const [isCloudMode, setIsCloudMode] = useState(false)
 
   useEffect(() => {
     fetch('/api/local-ip').then(r => r.json()).then(d => setLocalIP(d.ip))
@@ -112,14 +114,30 @@ export default function SelectPage() {
     const dataUrl = await buildStrip()
     setStripUrl(dataUrl)
 
+    // 로컬 서버에 항상 저장
     await fetch(`/api/sessions/${sessionId}/strip`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: dataUrl }),
     })
 
+    // 인터넷 되면 클라우드 업로드 → QR = 공개 URL
+    // 인터넷 없으면 핫스팟 URL 사용
+    const online = await isOnline()
+    if (online) {
+      const cloudUrl = await uploadStripToCloud(sessionId, dataUrl)
+      if (cloudUrl) {
+        setIsCloudMode(true)
+        setQrUrl(cloudUrl)
+        setSaving(false)
+        return
+      }
+    }
+
+    // 오프라인 또는 업로드 실패 → 핫스팟 URL
     const ip = localIP || 'localhost'
-    setQrUrl(`http://${ip}:3000/download/${sessionId}`)
+    setIsCloudMode(false)
+    setQrUrl(`https://${ip}:3000/download/${sessionId}`)
     setSaving(false)
   }
 
@@ -169,6 +187,11 @@ export default function SelectPage() {
         <div className="flex flex-col items-center gap-6 pt-6">
           <h1 className="text-white text-2xl font-black">완성! QR로 다운로드</h1>
 
+          {/* 온라인/오프라인 모드 표시 */}
+          <div className={`px-4 py-2 rounded-full text-sm font-bold ${isCloudMode ? 'bg-green-400 text-green-900' : 'bg-yellow-400 text-yellow-900'}`}>
+            {isCloudMode ? '🌐 온라인 — 어디서든 스캔 가능' : '📡 오프라인 — 핫스팟 연결 후 스캔'}
+          </div>
+
           <div className="flex gap-4 flex-wrap justify-center">
             {/* 스트립 미리보기 */}
             <img
@@ -181,7 +204,10 @@ export default function SelectPage() {
             {/* QR 코드 */}
             <div className="bg-white rounded-2xl p-4 flex flex-col items-center gap-2 shadow-2xl">
               <QRCodeDisplay url={qrUrl} size={200} />
-              <p className="text-gray-500 text-xs text-center">폰으로 스캔해서<br />사진 + 영상 다운로드</p>
+              <p className="text-gray-500 text-xs text-center">
+                {isCloudMode ? '어떤 WiFi로든 스캔 가능' : '핫스팟 연결 후 스캔'}
+                <br />사진 다운로드
+              </p>
             </div>
           </div>
 

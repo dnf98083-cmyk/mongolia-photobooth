@@ -22,7 +22,7 @@ export default function Home() {
     router.push(`/booth/${sessionId}`)
   }
 
-  const serverUrl = localIP ? `http://${localIP}:3000` : ''
+  const serverUrl = localIP ? `https://${localIP}:3000` : ''
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-purple-900 via-pink-800 to-rose-700 flex flex-col items-center justify-center p-6 gap-10">
