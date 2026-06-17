@@ -5,15 +5,7 @@ const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const BUCKET = 'photos'
 
 export async function isOnline(): Promise<boolean> {
-  try {
-    const res = await fetch(SUPABASE_URL, {
-      signal: AbortSignal.timeout(3000),
-      cache: 'no-store',
-    })
-    return res.ok || res.status < 500
-  } catch {
-    return false
-  }
+  return navigator.onLine
 }
 
 export async function uploadStripToCloud(
@@ -32,10 +24,15 @@ export async function uploadStripToCloud(
       .from(BUCKET)
       .upload(path, blob, { contentType: 'image/png', upsert: true })
 
-    if (error) return null
+    if (error) {
+      console.error('Supabase upload error:', error)
+      return null
+    }
 
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
-    return data.publicUrl
+    const imageUrl = data.publicUrl
+    const downloadPageUrl = 'https://cdn.jsdelivr.net/gh/dnf98083-cmyk/mongolia-photobooth@main/public/download-page.html'
+    return `${downloadPageUrl}?img=${encodeURIComponent(imageUrl)}`
   } catch {
     return null
   }

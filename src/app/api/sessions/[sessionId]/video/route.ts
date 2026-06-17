@@ -3,7 +3,6 @@ import fs from 'fs'
 import path from 'path'
 import { getSessionData, saveSessionData, ensureSessionDir } from '@/lib/storage'
 
-export const config = { api: { bodyParser: false } }
 
 export async function POST(req: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = await params
