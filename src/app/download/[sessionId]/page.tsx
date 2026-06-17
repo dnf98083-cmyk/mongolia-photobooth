@@ -1,4 +1,5 @@
 import { getSessionData } from '@/lib/storage'
+import DownloadButton from '@/components/DownloadButton'
 
 interface Props {
   params: Promise<{ sessionId: string }>
@@ -46,15 +47,7 @@ export default async function DownloadPage({ params, searchParams }: Props) {
           />
 
           {/* 사진 다운로드 버튼 */}
-          <a
-            href={stripSrc}
-            download="인생네컷.png"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full bg-white text-purple-900 font-extrabold text-lg text-center px-6 py-4 rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-transform"
-          >
-            📥 사진 저장하기
-          </a>
+          <DownloadButton url={stripSrc} />
         </div>
       )}
 
