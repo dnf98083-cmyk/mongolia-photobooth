@@ -343,14 +343,14 @@ export default function SelectPage() {
   const previewH = Math.round(previewW / previewAspect)
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-purple-900 via-pink-800 to-rose-700 p-3">
+    <main className="bg-gradient-to-br from-purple-900 via-pink-800 to-rose-700 min-h-screen md:h-screen md:overflow-hidden p-3">
       <canvas ref={canvasRef} className="hidden" />
 
       {!qrUrl ? (
-        <div className="flex flex-col md:flex-row gap-4 max-w-5xl mx-auto">
+        <div className="flex flex-col md:flex-row gap-3 md:h-full">
 
-          {/* 왼쪽: 선택 영역 */}
-          <div className="flex-1 min-w-0">
+          {/* 왼쪽: 선택 컨트롤 (태블릿에서 스크롤 가능) */}
+          <div className="md:w-[44%] md:overflow-y-auto md:pb-4">
             <h1 className="text-white text-xl font-black text-center mb-1 mt-1">사진 4장 고르기</h1>
             <p className="text-pink-200 text-center text-xs mb-2">{selected.length} / {REQUIRED} 선택됨</p>
 
@@ -413,25 +413,32 @@ export default function SelectPage() {
             </div>
           </div>
 
-          {/* 오른쪽: 실시간 미리보기 */}
-          <div className="flex flex-col items-center gap-2 md:pt-6">
-            <p className="text-white text-sm font-bold tracking-wide">미리보기</p>
-            <div className="relative" style={{ width: previewW, height: previewH }}>
+          {/* 오른쪽: 미리보기 — 태블릿에서 화면 꽉 차게 */}
+          <div className="md:w-[56%] flex flex-col items-center justify-center gap-3 py-2">
+            <div className="flex items-center gap-2">
+              <p className="text-white text-base font-bold tracking-wide">미리보기</p>
+              <span className="text-pink-200 text-xs bg-white/10 px-2 py-1 rounded-full">
+                {layoutType} · {THEMES[colorTheme].label}
+              </span>
+              {previewing && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            </div>
+            <div className="relative w-full flex items-center justify-center">
               {previewUrl ? (
                 <img
                   src={previewUrl}
                   alt="미리보기"
-                  className="rounded-xl shadow-2xl border-2 border-white/20 w-full h-full object-contain"
-                  style={{ opacity: previewing ? 0.5 : 1, transition: 'opacity 0.2s' }}
+                  className="rounded-2xl shadow-2xl border-2 border-white/20"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '80vh',
+                    objectFit: 'contain',
+                    opacity: previewing ? 0.6 : 1,
+                    transition: 'opacity 0.2s',
+                  }}
                 />
               ) : (
-                <div className="rounded-xl bg-white/10 w-full h-full flex items-center justify-center">
-                  <p className="text-pink-200 text-xs">사진을 선택하세요</p>
-                </div>
-              )}
-              {previewing && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="rounded-2xl bg-white/10 flex items-center justify-center" style={{ width: previewW, height: previewH }}>
+                  <p className="text-pink-200 text-sm">사진을 선택하세요</p>
                 </div>
               )}
             </div>
