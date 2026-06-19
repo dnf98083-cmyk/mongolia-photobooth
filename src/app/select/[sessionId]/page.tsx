@@ -47,6 +47,8 @@ export default function SelectPage() {
   const [localIP, setLocalIP] = useState('')
   const [isCloudMode, setIsCloudMode] = useState(false)
   const [colorTheme, setColorTheme] = useState<ColorTheme>('pink')
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [previewing, setPreviewing] = useState(false)
 
   useEffect(() => {
     fetch('/api/local-ip').then(r => r.json()).then(d => setLocalIP(d.ip))
@@ -275,6 +277,17 @@ export default function SelectPage() {
     return canvas.toDataURL('image/png')
   }, [selected, photos, colorTheme])
 
+  // 실시간 미리보기
+  useEffect(() => {
+    if (photos.length === 0) return
+    let cancelled = false
+    setPreviewing(true)
+    buildStrip().then(url => {
+      if (!cancelled) { setPreviewUrl(url); setPreviewing(false) }
+    })
+    return () => { cancelled = true }
+  }, [selected, colorTheme, buildStrip, photos.length])
+
   async function confirmSelection() {
     if (selected.length !== REQUIRED) return
     setSaving(true)
@@ -307,54 +320,83 @@ export default function SelectPage() {
       <canvas ref={canvasRef} className="hidden" />
 
       {!qrUrl ? (
-        <>
-          <h1 className="text-white text-2xl font-black text-center mb-1 mt-2">사진 4장 고르기</h1>
-          <p className="text-pink-200 text-center text-sm mb-3">{selected.length} / {REQUIRED} 선택됨</p>
+        <div className="flex flex-col lg:flex-row gap-4 max-w-5xl mx-auto">
 
-          {/* 컬러 테마 선택 */}
-          <div className="flex justify-center gap-3 mb-4">
-            {(Object.entries(THEMES) as [ColorTheme, typeof THEMES.pink][]).map(([key, t]) => (
+          {/* 왼쪽: 선택 영역 */}
+          <div className="flex-1">
+            <h1 className="text-white text-2xl font-black text-center mb-1 mt-2">사진 4장 고르기</h1>
+            <p className="text-pink-200 text-center text-sm mb-3">{selected.length} / {REQUIRED} 선택됨</p>
+
+            {/* 컬러 테마 선택 */}
+            <div className="flex justify-center gap-3 mb-4">
+              {(Object.entries(THEMES) as [ColorTheme, typeof THEMES.pink][]).map(([key, t]) => (
+                <button
+                  key={key}
+                  onClick={() => setColorTheme(key)}
+                  title={t.label}
+                  className={`w-10 h-10 rounded-full border-4 transition-all ${colorTheme === key ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60'}`}
+                  style={{ backgroundColor: t.primary }}
+                />
+              ))}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {photos.map((url, i) => {
+                const selIdx = selected.indexOf(i)
+                const isSelected = selIdx !== -1
+                return (
+                  <div
+                    key={i}
+                    onClick={() => toggleSelect(i)}
+                    className={`relative cursor-pointer rounded-xl overflow-hidden border-4 transition-all ${isSelected ? 'border-yellow-400 scale-95' : 'border-transparent opacity-70'}`}
+                  >
+                    <img src={url} alt={`photo-${i}`} className="w-full aspect-video object-cover" style={{ transform: 'scaleX(-1)' }} />
+                    {isSelected && (
+                      <div className="absolute top-1 right-1 bg-yellow-400 text-black font-black text-xs w-6 h-6 rounded-full flex items-center justify-center">
+                        {selIdx + 1}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="flex justify-center mt-5">
               <button
-                key={key}
-                onClick={() => setColorTheme(key)}
-                title={t.label}
-                className={`w-9 h-9 rounded-full border-4 transition-all ${colorTheme === key ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60'}`}
-                style={{ backgroundColor: t.primary }}
-              />
-            ))}
+                onClick={confirmSelection}
+                disabled={selected.length !== REQUIRED || saving}
+                className="bg-white text-purple-900 font-extrabold text-xl px-10 py-4 rounded-full shadow-xl disabled:opacity-40 hover:scale-105 transition-transform"
+              >
+                {saving ? '스트립 만드는 중...' : `선택 완료 (${selected.length}/${REQUIRED})`}
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 max-w-xl mx-auto">
-            {photos.map((url, i) => {
-              const selIdx = selected.indexOf(i)
-              const isSelected = selIdx !== -1
-              return (
-                <div
-                  key={i}
-                  onClick={() => toggleSelect(i)}
-                  className={`relative cursor-pointer rounded-xl overflow-hidden border-4 transition-all ${isSelected ? 'border-yellow-400 scale-95' : 'border-transparent opacity-70'}`}
-                >
-                  <img src={url} alt={`photo-${i}`} className="w-full aspect-video object-cover" style={{ transform: 'scaleX(-1)' }} />
-                  {isSelected && (
-                    <div className="absolute top-1 right-1 bg-yellow-400 text-black font-black text-xs w-6 h-6 rounded-full flex items-center justify-center">
-                      {selIdx + 1}
-                    </div>
-                  )}
+          {/* 오른쪽: 실시간 미리보기 */}
+          <div className="flex flex-col items-center gap-2 lg:pt-10">
+            <p className="text-white text-sm font-bold tracking-wide">미리보기</p>
+            <div className="relative">
+              {previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt="미리보기"
+                  className="rounded-2xl shadow-2xl border-2 border-white/20"
+                  style={{ width: 180, height: 'auto', opacity: previewing ? 0.5 : 1, transition: 'opacity 0.2s' }}
+                />
+              ) : (
+                <div className="rounded-2xl bg-white/10 flex items-center justify-center" style={{ width: 180, height: 234 }}>
+                  <p className="text-pink-200 text-xs">사진을 선택하세요</p>
                 </div>
-              )
-            })}
+              )}
+              {previewing && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex justify-center mt-6">
-            <button
-              onClick={confirmSelection}
-              disabled={selected.length !== REQUIRED || saving}
-              className="bg-white text-purple-900 font-extrabold text-xl px-10 py-4 rounded-full shadow-xl disabled:opacity-40 hover:scale-105 transition-transform"
-            >
-              {saving ? '스트립 만드는 중...' : `선택 완료 (${selected.length}/${REQUIRED})`}
-            </button>
-          </div>
-        </>
+        </div>
       ) : (
         <div className="flex flex-col items-center gap-4 pt-4 w-full px-4">
           <div className="text-center">
