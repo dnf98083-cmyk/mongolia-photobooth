@@ -320,27 +320,27 @@ export default function SelectPage() {
       <canvas ref={canvasRef} className="hidden" />
 
       {!qrUrl ? (
-        <div className="flex flex-col lg:flex-row gap-4 max-w-5xl mx-auto">
+        <div className="flex flex-col md:flex-row gap-4 max-w-5xl mx-auto">
 
           {/* 왼쪽: 선택 영역 */}
           <div className="flex-1">
-            <h1 className="text-white text-2xl font-black text-center mb-1 mt-2">사진 4장 고르기</h1>
-            <p className="text-pink-200 text-center text-sm mb-3">{selected.length} / {REQUIRED} 선택됨</p>
+            <h1 className="text-white text-xl font-black text-center mb-1 mt-1">사진 4장 고르기</h1>
+            <p className="text-pink-200 text-center text-xs mb-2">{selected.length} / {REQUIRED} 선택됨</p>
 
             {/* 컬러 테마 선택 */}
-            <div className="flex justify-center gap-3 mb-4">
+            <div className="flex justify-center gap-2 mb-3">
               {(Object.entries(THEMES) as [ColorTheme, typeof THEMES.pink][]).map(([key, t]) => (
                 <button
                   key={key}
                   onClick={() => setColorTheme(key)}
                   title={t.label}
-                  className={`w-10 h-10 rounded-full border-4 transition-all ${colorTheme === key ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60'}`}
+                  className={`w-8 h-8 rounded-full border-4 transition-all ${colorTheme === key ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60'}`}
                   style={{ backgroundColor: t.primary }}
                 />
               ))}
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               {photos.map((url, i) => {
                 const selIdx = selected.indexOf(i)
                 const isSelected = selIdx !== -1
@@ -361,11 +361,11 @@ export default function SelectPage() {
               })}
             </div>
 
-            <div className="flex justify-center mt-5">
+            <div className="flex justify-center mt-3">
               <button
                 onClick={confirmSelection}
                 disabled={selected.length !== REQUIRED || saving}
-                className="bg-white text-purple-900 font-extrabold text-xl px-10 py-4 rounded-full shadow-xl disabled:opacity-40 hover:scale-105 transition-transform"
+                className="bg-white text-purple-900 font-extrabold text-lg px-8 py-3 rounded-full shadow-xl disabled:opacity-40 hover:scale-105 transition-transform"
               >
                 {saving ? '스트립 만드는 중...' : `선택 완료 (${selected.length}/${REQUIRED})`}
               </button>
@@ -373,7 +373,7 @@ export default function SelectPage() {
           </div>
 
           {/* 오른쪽: 실시간 미리보기 */}
-          <div className="flex flex-col items-center gap-2 lg:pt-10">
+          <div className="flex flex-col items-center gap-2 md:pt-8">
             <p className="text-white text-sm font-bold tracking-wide">미리보기</p>
             <div className="relative">
               {previewUrl ? (
