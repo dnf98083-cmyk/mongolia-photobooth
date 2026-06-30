@@ -163,7 +163,7 @@ function SelectPageContent() {
   const [generating, setGenerating] = useState(false)
 
   const [qrUrl, setQrUrl] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [saving] = useState(false)
   const [isCloudMode, setIsCloudMode] = useState(false)
   const [localIP, setLocalIP] = useState('')
 
@@ -309,25 +309,20 @@ function SelectPageContent() {
     setPhase('preview')
   }
 
-  async function handleSave() {
-    setSaving(true)
-    // 로컬 저장과 클라우드 업로드는 미리보기 진입 시 이미 시작됨
-    // 혹시 아직 시작 안 됐거나 다른 dataUrl이면 새로 시작
+  function handleSave() {
+    const ip = localIP || '192.168.137.1'
+    const proto = window.location.protocol
+    // 즉시 로컬 QR로 done 화면 표시 — 기다리지 않음
+    setIsCloudMode(false)
+    setQrUrl(`${proto}//${ip}:3000/download/${sessionId}`)
+    setPhase('done')
+    // 클라우드 업로드 완료되면 QR URL 업데이트
     const uploadPromise = cloudUploadRef.current?.dataUrl === stripDataUrl
       ? cloudUploadRef.current.promise
       : uploadStripToCloud(sessionId, stripDataUrl)
-    const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 10000))
-    const cloudUrl = await Promise.race([uploadPromise, timeout])
-    const ip = localIP || '192.168.137.1'
-    const proto = window.location.protocol
-    if (cloudUrl) {
-      setIsCloudMode(true); setQrUrl(cloudUrl)1
-    } else {
-      setIsCloudMode(false)
-      setQrUrl(`${proto}//${ip}:3000/download/${sessionId}`)
-    }
-    setSaving(false)
-    setPhase('done')
+    uploadPromise.then(cloudUrl => {
+      if (cloudUrl) { setIsCloudMode(true); setQrUrl(cloudUrl) }
+    })
   }
 
   // 미리보기에서 색상 바꾸면 스트립 즉시 재생성 (훅은 return 전에 위치해야 함)
