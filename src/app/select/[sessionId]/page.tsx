@@ -168,6 +168,8 @@ function SelectPageContent() {
   const [localIP, setLocalIP] = useState('')
 
   const cloudUploadRef = useRef<{ dataUrl: string; promise: Promise<string | null> } | null>(null)
+  // 4장 선택 완료 시 미리 생성된 스트립을 캐시
+  const prebuiltStripRef = useRef<{ selected: number[]; theme: ColorTheme; url: string } | null>(null)
 
   useEffect(() => {
     fetch('/api/local-ip').then(r => r.json()).then(d => setLocalIP(d.ip))
@@ -301,7 +303,27 @@ function SelectPageContent() {
     return canvas.toDataURL('image/png')
   }, [selected, photos, colorTheme, layoutType])
 
+  // 4장이 선택되면 즉시 백그라운드 스트립 생성 (선택 완료 버튼 클릭 전에 완성)
+  useEffect(() => {
+    if (selected.length !== REQUIRED || phase !== 'select') {
+      prebuiltStripRef.current = null
+      return
+    }
+    let cancelled = false
+    buildStrip().then(url => {
+      if (!cancelled) prebuiltStripRef.current = { selected: [...selected], theme: colorTheme, url }
+    })
+    return () => { cancelled = true }
+  }, [selected, colorTheme, buildStrip, phase])
+
   async function handleConfirmSelect() {
+    const pre = prebuiltStripRef.current
+    // 선택/테마가 동일하면 미리 만든 스트립 즉시 사용
+    if (pre && pre.theme === colorTheme && pre.selected.join() === selected.join()) {
+      setStripDataUrl(pre.url)
+      setPhase('preview')
+      return
+    }
     setGenerating(true)
     const dataUrl = await buildStrip()
     setStripDataUrl(dataUrl)
