@@ -478,8 +478,11 @@ export default function BoothPage() {
     <main className={isShootPhase ? 'bg-black flex flex-col overflow-hidden' : 'bg-gradient-to-br from-purple-900 via-pink-800 to-rose-700'}
       style={{ height: '100dvh' }}>
 
-      {/* ── 촬영 화면 (setup / countdown / flash / done) ── */}
-      {isShootPhase && (<>
+      {/* 항상 DOM에 유지 — video unmount 시 카메라 종료 지연(2분) 방지 */}
+      <canvas ref={canvasRef} className="hidden" />
+
+      {/* ── 촬영 화면 (setup / countdown / flash / done) ── display:none으로만 숨김 */}
+      <div className={`flex flex-col overflow-hidden h-full ${isShootPhase ? '' : 'hidden'}`}>
         {phase === 'flash' && (
           <div className="absolute inset-0 bg-white z-50 pointer-events-none animate-ping"
             style={{ animationDuration: '0.15s', animationIterationCount: 1 }} />
@@ -573,13 +576,11 @@ export default function BoothPage() {
           )}
         </div>
 
-        <canvas ref={canvasRef} className="hidden" />
-      </>)}
+      </div>
 
       {/* ── 사진 고르기 (select) ── */}
       {phase === 'select' && (
         <div className="flex flex-col p-3 gap-2 h-full">
-          <canvas ref={canvasRef} className="hidden" />
           <div className="text-center">
             <h1 className="text-white text-xl font-black">사진 4장 고르기</h1>
             <p className="text-pink-200 text-xs mt-0.5">{selected.length} / {REQUIRED} 선택됨</p>
@@ -616,7 +617,6 @@ export default function BoothPage() {
       {/* ── 미리보기 (preview) ── */}
       {phase === 'preview' && (
         <div className="flex flex-col items-center justify-center gap-4 p-5 h-full">
-          {phase === 'preview' && <canvas ref={canvasRef} className="hidden" />}
           <p className="text-white text-xl font-black tracking-wide">미리보기</p>
           <div className="flex gap-3 items-center">
             {(Object.entries(THEMES) as [ColorTheme, typeof THEMES.pink][]).map(([key, t]) => (
