@@ -175,12 +175,28 @@ function SelectPageContent() {
   }, [])
 
   useEffect(() => {
-    fetch(`/api/sessions/${sessionId}`)
-      .then(r => r.json())
-      .then(session => {
-        const count: number = session.photoCount ?? 0
-        setPhotos(Array.from({ length: count }, (_, i) => `/api/files/${sessionId}/photo_${i}.jpg`))
+    const cached = sessionStorage.getItem(`photos_${sessionId}`)
+    if (cached) {
+      const dataUrls: string[] = JSON.parse(cached)
+      setPhotos(dataUrls)
+      sessionStorage.removeItem(`photos_${sessionId}`)
+      // 사용자가 사진 고르는 동안 백그라운드로 서버에 업로드
+      dataUrls.forEach((data, i) => {
+        fetch(`/api/sessions/${sessionId}/photo`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ photoIndex: i, data }),
+        })
       })
+    } else {
+      // 페이지 새로고침 등 — 서버에서 불러오기
+      fetch(`/api/sessions/${sessionId}`)
+        .then(r => r.json())
+        .then(session => {
+          const count: number = session.photoCount ?? 0
+          setPhotos(Array.from({ length: count }, (_, i) => `/api/files/${sessionId}/photo_${i}.jpg`))
+        })
+    }
   }, [sessionId])
 
   function toggleSelect(i: number) {

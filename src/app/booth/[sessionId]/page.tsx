@@ -290,14 +290,6 @@ export default function BoothPage() {
     return canvas.toDataURL('image/jpeg', 0.75)
   }, [layoutType])
 
-  const uploadPhoto = useCallback(async (index: number, data: string) => {
-    await fetch(`/api/sessions/${sessionId}/photo`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ photoIndex: index, data }),
-    })
-  }, [sessionId])
-
   const startShooting = useCallback(() => {
     if (!streamRef.current) return
     setPhase('countdown')
@@ -314,7 +306,6 @@ export default function BoothPage() {
     setPhase('flash')
     const dataUrl = capturePhoto()
     setPhotos(prev => [...prev, dataUrl])
-    uploadPhoto(shotIndex, dataUrl)
     setTimeout(() => {
       if (shotIndex + 1 < TOTAL_SHOTS) {
         setShotIndex(i => i + 1)
@@ -324,9 +315,10 @@ export default function BoothPage() {
         setPhase('done')
       }
     }, 800)
-  }, [phase, countdown, shotIndex, capturePhoto, uploadPhoto])
+  }, [phase, countdown, shotIndex, capturePhoto])
 
   function finishAndGoSelect() {
+    sessionStorage.setItem(`photos_${sessionId}`, JSON.stringify(photos))
     router.push(`/select/${sessionId}?layout=${layoutType}`)
   }
 
