@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useCallback, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import QRCodeDisplay from '@/components/QRCodeDisplay'
-import { uploadStripToCloud } from '@/lib/cloudStorage'
+// Supabase SDK는 번들에서 제외 — preview 진입 시 lazy import
+const getUploader = () => import('@/lib/cloudStorage').then(m => m.uploadStripToCloud)
 
 type ColorTheme = 'pink' | 'yellow' | 'green' | 'blue'
 type LayoutType = '2x2' | '1x4' | '4x1'
@@ -341,8 +342,8 @@ function SelectPageContent() {
     // 클라우드 업로드 완료되면 QR URL 업데이트
     const uploadPromise = cloudUploadRef.current?.dataUrl === stripDataUrl
       ? cloudUploadRef.current.promise
-      : uploadStripToCloud(sessionId, stripDataUrl)
-    uploadPromise.then(cloudUrl => {
+      : getUploader().then(fn => fn(sessionId, stripDataUrl))
+    uploadPromise.then((cloudUrl: string | null) => {
       if (cloudUrl) { setIsCloudMode(true); setQrUrl(cloudUrl) }
     })
   }
@@ -371,7 +372,7 @@ function SelectPageContent() {
     // 클라우드 업로드 시작 — 최신 dataUrl과 Promise를 ref에 보관
     cloudUploadRef.current = {
       dataUrl: stripDataUrl,
-      promise: uploadStripToCloud(sessionId, stripDataUrl),
+      promise: getUploader().then(fn => fn(sessionId, stripDataUrl)),
     }
   }, [stripDataUrl, phase, sessionId])
 
