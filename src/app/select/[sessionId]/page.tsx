@@ -167,6 +167,8 @@ function SelectPageContent() {
   const [isCloudMode, setIsCloudMode] = useState(false)
   const [localIP, setLocalIP] = useState('')
 
+  const photoUploadRef = useRef<Promise<void>>(Promise.resolve())
+  const photoUploadDoneRef = useRef(true)
   const cloudUploadRef = useRef<{ dataUrl: string; promise: Promise<string | null> } | null>(null)
 
   useEffect(() => {
@@ -179,14 +181,17 @@ function SelectPageContent() {
       const dataUrls: string[] = JSON.parse(cached)
       setPhotos(dataUrls)
       sessionStorage.removeItem(`photos_${sessionId}`)
-      // 사진 고르는 동안 백그라운드로 서버에 업로드
-      dataUrls.forEach((data, i) => {
-        fetch(`/api/sessions/${sessionId}/photo`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ photoIndex: i, data }),
-        })
-      })
+      // 사진 고르는 동안 백그라운드 업로드 + 완료 추적
+      photoUploadDoneRef.current = false
+      photoUploadRef.current = Promise.all(
+        dataUrls.map((data, i) =>
+          fetch(`/api/sessions/${sessionId}/photo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoIndex: i, data }),
+          })
+        )
+      ).then(() => { photoUploadDoneRef.current = true })
     } else {
       // 페이지 새로고침 등 — 서버에서 불러오기
       fetch(`/api/sessions/${sessionId}`)
@@ -309,8 +314,15 @@ function SelectPageContent() {
     return canvas.toDataURL('image/png')
   }, [selected, photos, colorTheme, layoutType])
 
+  const [uploadingLabel, setUploadingLabel] = useState(false)
+
   async function handleConfirmSelect() {
     setGenerating(true)
+    if (!photoUploadDoneRef.current) {
+      setUploadingLabel(true)
+      await photoUploadRef.current
+      setUploadingLabel(false)
+    }
     const dataUrl = await buildStrip()
     setStripDataUrl(dataUrl)
     setGenerating(false)
@@ -329,7 +341,7 @@ function SelectPageContent() {
     const ip = localIP || '192.168.137.1'
     const proto = window.location.protocol
     if (cloudUrl) {
-      setIsCloudMode(true); setQrUrl(cloudUrl)
+      setIsCloudMode(true); setQrUrl(cloudUrl)1
     } else {
       setIsCloudMode(false)
       setQrUrl(`${proto}//${ip}:3000/download/${sessionId}`)
@@ -408,7 +420,7 @@ function SelectPageContent() {
               disabled={selected.length !== REQUIRED || generating}
               className="bg-white text-purple-900 font-extrabold text-lg px-12 py-3.5 rounded-full shadow-xl disabled:opacity-40 hover:scale-105 active:scale-95 transition-all"
             >
-              {generating ? '생성 중...' : `선택 완료 (${selected.length}/${REQUIRED})`}
+              {uploadingLabel ? '업로드 중...' : generating ? '생성 중...' : `선택 완료 (${selected.length}/${REQUIRED})`}
             </button>
           </div>
         </div>

@@ -306,6 +306,11 @@ export default function BoothPage() {
     setPhase('flash')
     const dataUrl = capturePhoto()
     setPhotos(prev => [...prev, dataUrl])
+    fetch(`/api/sessions/${sessionId}/photo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photoIndex: shotIndex, data: dataUrl }),
+    })
     setTimeout(() => {
       if (shotIndex + 1 < TOTAL_SHOTS) {
         setShotIndex(i => i + 1)
