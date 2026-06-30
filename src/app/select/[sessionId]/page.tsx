@@ -167,7 +167,6 @@ function SelectPageContent() {
   const [isCloudMode, setIsCloudMode] = useState(false)
   const [localIP, setLocalIP] = useState('')
 
-  const photoUploadRef = useRef<Promise<void>>(Promise.resolve())
   const cloudUploadRef = useRef<{ dataUrl: string; promise: Promise<string | null> } | null>(null)
 
   useEffect(() => {
@@ -180,16 +179,7 @@ function SelectPageContent() {
       const dataUrls: string[] = JSON.parse(cached)
       setPhotos(dataUrls)
       sessionStorage.removeItem(`photos_${sessionId}`)
-      // 사용자가 사진 고르는 동안 백그라운드로 서버에 업로드 — 완료 여부 추적
-      photoUploadRef.current = Promise.all(
-        dataUrls.map((data, i) =>
-          fetch(`/api/sessions/${sessionId}/photo`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ photoIndex: i, data }),
-          })
-        )
-      ).then(() => {})
+      // booth에서 이미 업로드 시작됨 — 여기서 중복 업로드 안 함
     } else {
       // 페이지 새로고침 등 — 서버에서 불러오기
       fetch(`/api/sessions/${sessionId}`)
@@ -316,9 +306,22 @@ function SelectPageContent() {
 
   async function handleConfirmSelect() {
     setGenerating(true)
-    setGeneratingLabel('저장 중...')
-    await photoUploadRef.current
-    setGeneratingLabel('생성 중...')
+    // 서버에 사진이 다 올라갔는지 확인 — 아직이면 저장 중 표시 후 대기
+    const total = photos.length
+    if (total > 0) {
+      const check = async () => {
+        const res = await fetch(`/api/sessions/${sessionId}`)
+        const s = await res.json()
+        return (s.photoCount ?? 0) >= total
+      }
+      if (!(await check())) {
+        setGeneratingLabel('저장 중...')
+        while (!(await check())) {
+          await new Promise(r => setTimeout(r, 400))
+        }
+        setGeneratingLabel('생성 중...')
+      }
+    }
     const dataUrl = await buildStrip()
     setStripDataUrl(dataUrl)
     setGenerating(false)
