@@ -281,11 +281,13 @@ export default function BoothPage() {
       sy = Math.round((vh - sh) / 2)
     }
 
-    canvas.width = sw
-    canvas.height = sh
+    const MAX = 960
+    const scale = Math.min(1, MAX / Math.max(sw, sh))
+    canvas.width = Math.round(sw * scale)
+    canvas.height = Math.round(sh * scale)
     const ctx = canvas.getContext('2d')!
-    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh)
-    return canvas.toDataURL('image/jpeg', 0.9)
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/jpeg', 0.75)
   }, [layoutType])
 
   const uploadPhoto = useCallback(async (index: number, data: string) => {
