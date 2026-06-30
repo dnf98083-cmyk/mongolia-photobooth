@@ -14,7 +14,6 @@ export default async function DownloadPage({ params, searchParams }: Props) {
   try { session = getSessionData(sessionId) } catch {}
 
   const stripSrc = cloudUrl || (session?.stripFile ? `/api/files/${sessionId}/strip.png` : null)
-  const hasVideo = !!session?.videoFile
 
   if (!stripSrc && !session) {
     return (
@@ -51,18 +50,7 @@ export default async function DownloadPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      {/* 영상 다운로드 (로컬 모드에서만) */}
-      {hasVideo && !cloudUrl && (
-        <a
-          href={`/api/files/${sessionId}/video.webm`}
-          download="인생네컷_영상.webm"
-          className="w-full max-w-xs bg-pink-500 text-white font-extrabold text-lg text-center px-6 py-4 rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-transform"
-        >
-          🎬 영상 저장하기
-        </a>
-      )}
-
-      {/* 날짜 */}
+{/* 날짜 */}
       {session && (
         <p className="text-pink-200 text-xs text-center">
           촬영 날짜: {new Date(session.createdAt).toLocaleDateString('ko-KR')}

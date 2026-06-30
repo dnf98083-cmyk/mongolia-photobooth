@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useEffect, useRef, useState, useCallback, Suspense } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
 import QRCodeDisplay from '@/components/QRCodeDisplay'
 import { uploadStripToCloud } from '@/lib/cloudStorage'
 
 type ColorTheme = 'pink' | 'yellow' | 'green' | 'blue'
 type LayoutType = '2x2' | '1x4' | '4x1'
+type Phase = 'select' | 'preview' | 'done'
 
 const THEMES: Record<ColorTheme, { primary: string; bg: string; label: string }> = {
   pink:   { primary: '#E91E8C', bg: '#FFF5FA', label: '핑크' },
@@ -36,7 +37,8 @@ function roundedRect(
 
 async function drawPhoto(
   ctx: CanvasRenderingContext2D,
-  src: string, px: number, py: number, pw: number, ph: number
+  src: string, px: number, py: number, pw: number, ph: number,
+  bgColor = '#ffffff'
 ) {
   await new Promise<void>(resolve => {
     const img = new Image()
@@ -44,10 +46,12 @@ async function drawPhoto(
     img.onload = () => {
       ctx.save()
       roundedRect(ctx, px, py, pw, ph, 10); ctx.clip()
-      const scale = Math.max(pw / img.width, ph / img.height)
-      const sw = pw / scale, sh = ph / scale
-      const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2
-      ctx.drawImage(img, sx, sy, sw, sh, px, py, pw, ph)
+      ctx.fillStyle = bgColor
+      ctx.fillRect(px, py, pw, ph)
+      const scale = Math.min(pw / img.width, ph / img.height)
+      const dw = img.width * scale, dh = img.height * scale
+      const dx = px + (pw - dw) / 2, dy = py + (ph - dh) / 2
+      ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh)
       ctx.restore()
       resolve()
     }
@@ -61,18 +65,11 @@ function drawSidebar(
   sbW: number, totalH: number
 ) {
   const cx = 6 + sbW / 2
-
-  // Tinted sidebar bg
   ctx.fillStyle = BG
   roundedRect(ctx, 6, 6, sbW, totalH - 12, 14); ctx.fill()
-
-  // Separator
   ctx.strokeStyle = C; ctx.lineWidth = 1.5
   ctx.beginPath(); ctx.moveTo(6 + sbW + 4, 14); ctx.lineTo(6 + sbW + 4, totalH - 14); ctx.stroke()
-
-  const sc = sbW / 148  // scale factor relative to 2x2 sidebar
-
-  // Cross icon in circle
+  const sc = sbW / 148
   const iconR = Math.round(28 * sc)
   const iconY = Math.round(55 * sc + iconR)
   ctx.strokeStyle = C; ctx.lineWidth = Math.max(1.5, 2 * sc)
@@ -80,8 +77,6 @@ function drawSidebar(
   ctx.lineWidth = Math.max(2, 3 * sc)
   ctx.beginPath(); ctx.moveTo(cx, iconY - iconR * 0.55); ctx.lineTo(cx, iconY + iconR * 0.48); ctx.stroke()
   ctx.beginPath(); ctx.moveTo(cx - iconR * 0.46, iconY - iconR * 0.15); ctx.lineTo(cx + iconR * 0.46, iconY - iconR * 0.15); ctx.stroke()
-
-  // MONGOLIA (rotated)
   ctx.save()
   ctx.translate(cx, totalH * 0.415)
   ctx.rotate(-Math.PI / 2)
@@ -90,8 +85,6 @@ function drawSidebar(
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.fillText('MONGOLIA', 0, 0)
   ctx.restore()
-
-  // MISSION YOUTH CAMP (rotated)
   ctx.save()
   ctx.translate(cx, totalH * 0.415 + Math.round(36 * sc))
   ctx.rotate(-Math.PI / 2)
@@ -100,8 +93,6 @@ function drawSidebar(
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.fillText('MISSION  YOUTH  CAMP', 0, 0)
   ctx.restore()
-
-  // Stamp circle
   const stY = Math.round(totalH * 0.625)
   const stR = Math.round(50 * sc)
   ctx.strokeStyle = C; ctx.lineWidth = Math.max(1, 2 * sc)
@@ -112,20 +103,16 @@ function drawSidebar(
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.fillText('MISSION', cx, stY - stR + Math.round(17 * sc))
   ctx.fillText('COMPLETE!', cx, stY + stR - Math.round(17 * sc))
-  // Tent
   ctx.strokeStyle = C; ctx.lineWidth = Math.max(1, 2 * sc)
   ctx.beginPath()
   ctx.moveTo(cx, stY - Math.round(18 * sc))
   ctx.lineTo(cx - Math.round(18 * sc), stY + Math.round(8 * sc))
   ctx.lineTo(cx + Math.round(18 * sc), stY + Math.round(8 * sc))
   ctx.closePath(); ctx.stroke()
-  // Stars
   ctx.fillStyle = C
   ctx.font = `${Math.round(10 * sc)}px sans-serif`
   ctx.fillText('★', cx - Math.round(34 * sc), stY + 1)
   ctx.fillText('★', cx + Math.round(34 * sc), stY + 1)
-
-  // Info: 2026 / plane / SEOUL → MONGOLIA
   const infoTop = totalH * 0.762
   ctx.fillStyle = C; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.font = `bold ${Math.round(19 * sc)}px Arial, sans-serif`
@@ -137,8 +124,6 @@ function drawSidebar(
   ctx.fillText('SEOUL', cx, infoTop + li * 3)
   ctx.font = `${Math.round(10 * sc)}px sans-serif`; ctx.fillText('▼', cx, infoTop + li * 3.85)
   ctx.font = `bold ${Math.round(9 * sc)}px Arial, sans-serif`; ctx.fillText('MONGOLIA', cx, infoTop + li * 4.65)
-
-  // Camera
   const camY = totalH - Math.round(66 * sc)
   ctx.strokeStyle = C; ctx.lineWidth = Math.max(1, 2 * sc)
   roundedRect(ctx, cx - Math.round(20 * sc), camY - Math.round(11 * sc), Math.round(40 * sc), Math.round(26 * sc), 5); ctx.stroke()
@@ -162,21 +147,28 @@ function drawHeader(
   ctx.fillText('✦', cx + 155, startY + lineH)
 }
 
-export default function SelectPage() {
+function SelectPageContent() {
   const { sessionId } = useParams<{ sessionId: string }>()
+  const searchParams = useSearchParams()
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
+  const layoutType = (searchParams.get('layout') as LayoutType) || '2x2'
+
+  const [phase, setPhase] = useState<Phase>('select')
   const [photos, setPhotos] = useState<string[]>([])
   const [selected, setSelected] = useState<number[]>([])
-  const [stripUrl, setStripUrl] = useState('')
+  const [colorTheme, setColorTheme] = useState<ColorTheme>('pink')
+
+  const [stripDataUrl, setStripDataUrl] = useState('')
+  const [generating, setGenerating] = useState(false)
+
   const [qrUrl, setQrUrl] = useState('')
   const [saving, setSaving] = useState(false)
-  const [localIP, setLocalIP] = useState('')
   const [isCloudMode, setIsCloudMode] = useState(false)
-  const [colorTheme, setColorTheme] = useState<ColorTheme>('pink')
-  const [layoutType, setLayoutType] = useState<LayoutType>('2x2')
-  const [previewUrl, setPreviewUrl] = useState('')
-  const [previewing, setPreviewing] = useState(false)
+  const [localIP, setLocalIP] = useState('')
+
+  // 미리보기 진입 즉시 백그라운드 업로드 시작 — 저장하기 클릭 시 이미 완료되어 있을 가능성 높음
+  const cloudUploadRef = useRef<{ dataUrl: string; promise: Promise<string | null> } | null>(null)
 
   useEffect(() => {
     fetch('/api/local-ip').then(r => r.json()).then(d => setLocalIP(d.ip))
@@ -206,7 +198,6 @@ export default function SelectPage() {
     const NUM_LABELS = ['01', '02', '03', '04']
     const NUM_ICONS  = ['◎', '☆', '♡', '✎']
 
-    // ── 2×2 layout ────────────────────────────────────────────
     if (layoutType === '2x2') {
       const W = 800, H = 1040
       canvas.width = W; canvas.height = H
@@ -227,7 +218,7 @@ export default function SelectPage() {
           const idx = row * 2 + col
           const px = PX0 + col * (PW + PGAP), py = PY0 + row * (PH + PGAP)
           ctx.fillStyle = '#E0E0E0'; roundedRect(ctx, px, py, PW, PH, 10); ctx.fill()
-          if (photos[selected[idx]]) await drawPhoto(ctx, photos[selected[idx]], px, py, PW, PH)
+          if (photos[selected[idx]]) await drawPhoto(ctx, photos[selected[idx]], px, py, PW, PH, BG)
           ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2
           roundedRect(ctx, px, py, PW, PH, 10); ctx.stroke()
           ctx.fillStyle = C; ctx.font = 'bold 13px Arial, sans-serif'
@@ -239,7 +230,6 @@ export default function SelectPage() {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
       ctx.fillText('· + · LOVED BEYOND BORDERS · + ·', HDRCX, H - 22)
 
-    // ── 1×4 layout ────────────────────────────────────────────
     } else if (layoutType === '1x4') {
       const W = 520, H = 980
       canvas.width = W; canvas.height = H
@@ -258,7 +248,7 @@ export default function SelectPage() {
       for (let i = 0; i < 4; i++) {
         const py = PY0 + i * (PH + PGAP)
         ctx.fillStyle = '#E0E0E0'; roundedRect(ctx, PX, py, PW, PH, 8); ctx.fill()
-        if (photos[selected[i]]) await drawPhoto(ctx, photos[selected[i]], PX, py, PW, PH)
+        if (photos[selected[i]]) await drawPhoto(ctx, photos[selected[i]], PX, py, PW, PH, BG)
         ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2
         roundedRect(ctx, PX, py, PW, PH, 8); ctx.stroke()
         ctx.fillStyle = C; ctx.font = 'bold 12px Arial, sans-serif'
@@ -269,7 +259,6 @@ export default function SelectPage() {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
       ctx.fillText('· + · LOVED BEYOND BORDERS · + ·', HDRCX, H - 22)
 
-    // ── 4×1 layout ────────────────────────────────────────────
     } else {
       const W = 1100, H = 420
       canvas.width = W; canvas.height = H
@@ -288,7 +277,7 @@ export default function SelectPage() {
       for (let i = 0; i < 4; i++) {
         const px = PX0 + i * (PW + PGAP)
         ctx.fillStyle = '#E0E0E0'; roundedRect(ctx, px, PY, PW, PH, 8); ctx.fill()
-        if (photos[selected[i]]) await drawPhoto(ctx, photos[selected[i]], px, PY, PW, PH)
+        if (photos[selected[i]]) await drawPhoto(ctx, photos[selected[i]], px, PY, PW, PH, BG)
         ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2
         roundedRect(ctx, px, PY, PW, PH, 8); ctx.stroke()
         ctx.fillStyle = C; ctx.font = 'bold 12px Arial, sans-serif'
@@ -305,175 +294,200 @@ export default function SelectPage() {
     return canvas.toDataURL('image/png')
   }, [selected, photos, colorTheme, layoutType])
 
-  // 실시간 미리보기
-  useEffect(() => {
-    if (photos.length === 0) return
-    let cancelled = false
-    setPreviewing(true)
-    buildStrip().then(url => {
-      if (!cancelled) { setPreviewUrl(url); setPreviewing(false) }
-    })
-    return () => { cancelled = true }
-  }, [selected, colorTheme, layoutType, buildStrip, photos.length])
-
-  async function confirmSelection() {
-    if (selected.length !== REQUIRED) return
-    setSaving(true)
+  async function handleConfirmSelect() {
+    setGenerating(true)
     const dataUrl = await buildStrip()
-    setStripUrl(dataUrl)
-    await fetch(`/api/sessions/${sessionId}/strip`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: dataUrl }),
-    })
+    setStripDataUrl(dataUrl)
+    setGenerating(false)
+    setPhase('preview')
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    // 로컬 저장과 클라우드 업로드는 미리보기 진입 시 이미 시작됨
+    // 혹시 아직 시작 안 됐거나 다른 dataUrl이면 새로 시작
+    const uploadPromise = cloudUploadRef.current?.dataUrl === stripDataUrl
+      ? cloudUploadRef.current.promise
+      : uploadStripToCloud(sessionId, stripDataUrl)
     const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 10000))
-    const cloudUrl = await Promise.race([uploadStripToCloud(sessionId, dataUrl), timeout])
+    const cloudUrl = await Promise.race([uploadPromise, timeout])
     const ip = localIP || '192.168.137.1'
+    const proto = window.location.protocol
     if (cloudUrl) {
       setIsCloudMode(true); setQrUrl(cloudUrl)
     } else {
-      setIsCloudMode(false); setQrUrl(`https://${ip}:3000/download/${sessionId}`)
+      setIsCloudMode(false)
+      setQrUrl(`${proto}//${ip}:3000/download/${sessionId}`)
     }
     setSaving(false)
+    setPhase('done')
   }
 
-  // Preview aspect ratio for placeholder
-  const previewAspect = layoutType === '4x1' ? 1100 / 420 : layoutType === '1x4' ? 520 / 980 : 800 / 1040
-  const previewW = layoutType === '4x1' ? 320 : 180
-  const previewH = Math.round(previewW / previewAspect)
+  // 미리보기에서 색상 바꾸면 스트립 즉시 재생성 (훅은 return 전에 위치해야 함)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (phase !== 'preview') return
+    let cancelled = false
+    setGenerating(true)
+    buildStrip().then(url => {
+      if (!cancelled) { setStripDataUrl(url); setGenerating(false) }
+    })
+    return () => { cancelled = true }
+  }, [colorTheme])
+
+  // 스트립 생성되는 즉시 백그라운드에서 로컬 저장 + 클라우드 업로드 시작
+  useEffect(() => {
+    if (!stripDataUrl || phase !== 'preview') return
+    // 로컬 서버에 저장 (fire & forget — 색상 바뀌면 덮어쓰기)
+    fetch(`/api/sessions/${sessionId}/strip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: stripDataUrl }),
+    })
+    // 클라우드 업로드 시작 — 최신 dataUrl과 Promise를 ref에 보관
+    cloudUploadRef.current = {
+      dataUrl: stripDataUrl,
+      promise: uploadStripToCloud(sessionId, stripDataUrl),
+    }
+  }, [stripDataUrl, phase, sessionId])
 
   return (
-    <main className="bg-gradient-to-br from-purple-900 via-pink-800 to-rose-700 min-h-screen md:h-screen md:overflow-hidden p-3">
+    <main className="bg-gradient-to-br from-purple-900 via-pink-800 to-rose-700" style={{ height: '100dvh' }}>
+      {/* canvas는 항상 DOM에 유지 — phase 전환 시 null 방지 */}
       <canvas ref={canvasRef} className="hidden" />
 
-      {!qrUrl ? (
-        <div className="flex flex-col md:flex-row gap-3 md:h-full">
+      {/* ── Phase: 사진 고르기 ── */}
+      {phase === 'select' && (
+        <div className="flex flex-col p-3 gap-2 h-full">
+          <div className="text-center">
+            <h1 className="text-white text-xl font-black">사진 4장 고르기</h1>
+            <p className="text-pink-200 text-xs mt-0.5">{selected.length} / {REQUIRED} 선택됨</p>
+          </div>
 
-          {/* 왼쪽: 선택 컨트롤 (태블릿에서 스크롤 가능) */}
-          <div className="md:w-[44%] md:overflow-y-auto md:pb-4">
-            <h1 className="text-white text-xl font-black text-center mb-1 mt-1">사진 4장 고르기</h1>
-            <p className="text-pink-200 text-center text-xs mb-2">{selected.length} / {REQUIRED} 선택됨</p>
-
-            {/* 레이아웃 선택 */}
-            <div className="flex justify-center gap-2 mb-2">
-              {([['2x2','⊞','2×2'], ['1x4','▤','1×4'], ['4x1','⊟','4×1']] as [LayoutType,string,string][]).map(([key, icon, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setLayoutType(key)}
-                  className={`flex flex-col items-center px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all ${layoutType === key ? 'bg-white text-purple-900 border-white' : 'bg-white/10 text-white border-white/30 opacity-70'}`}
+          <div className="grid grid-cols-3 gap-2 flex-1 content-center">
+            {photos.map((url, i) => {
+              const selIdx = selected.indexOf(i)
+              const isSelected = selIdx !== -1
+              return (
+                <div
+                  key={i}
+                  onClick={() => toggleSelect(i)}
+                  className={`relative cursor-pointer rounded-xl overflow-hidden border-4 transition-all active:scale-95 ${
+                    isSelected ? 'border-yellow-400' : 'border-transparent opacity-60 hover:opacity-80'
+                  }`}
                 >
-                  <span className="text-lg">{icon}</span>
-                  <span className="text-xs">{label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* 컬러 테마 선택 */}
-            <div className="flex justify-center gap-2 mb-2">
-              {(Object.entries(THEMES) as [ColorTheme, typeof THEMES.pink][]).map(([key, t]) => (
-                <button
-                  key={key}
-                  onClick={() => setColorTheme(key)}
-                  title={t.label}
-                  className={`w-8 h-8 rounded-full border-4 transition-all ${colorTheme === key ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60'}`}
-                  style={{ backgroundColor: t.primary }}
-                />
-              ))}
-            </div>
-
-            <div className="grid grid-cols-3 gap-1.5">
-              {photos.map((url, i) => {
-                const selIdx = selected.indexOf(i)
-                const isSelected = selIdx !== -1
-                return (
-                  <div
-                    key={i}
-                    onClick={() => toggleSelect(i)}
-                    className={`relative cursor-pointer rounded-xl overflow-hidden border-4 transition-all ${isSelected ? 'border-yellow-400 scale-95' : 'border-transparent opacity-70'}`}
-                  >
-                    <img src={url} alt={`photo-${i}`} className="w-full aspect-video object-cover" style={{ transform: 'scaleX(-1)' }} />
-                    {isSelected && (
-                      <div className="absolute top-1 right-1 bg-yellow-400 text-black font-black text-xs w-6 h-6 rounded-full flex items-center justify-center">
-                        {selIdx + 1}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="flex justify-center mt-3">
-              <button
-                onClick={confirmSelection}
-                disabled={selected.length !== REQUIRED || saving}
-                className="bg-white text-purple-900 font-extrabold text-lg px-8 py-3 rounded-full shadow-xl disabled:opacity-40 hover:scale-105 transition-transform"
-              >
-                {saving ? '스트립 만드는 중...' : `선택 완료 (${selected.length}/${REQUIRED})`}
-              </button>
-            </div>
-          </div>
-
-          {/* 오른쪽: 미리보기 — 태블릿에서 화면 꽉 차게 */}
-          <div className="md:w-[56%] flex flex-col items-center justify-center gap-3 py-2">
-            <div className="flex items-center gap-2">
-              <p className="text-white text-base font-bold tracking-wide">미리보기</p>
-              <span className="text-pink-200 text-xs bg-white/10 px-2 py-1 rounded-full">
-                {layoutType} · {THEMES[colorTheme].label}
-              </span>
-              {previewing && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-            </div>
-            <div className="relative w-full flex items-center justify-center">
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="미리보기"
-                  className="rounded-2xl shadow-2xl border-2 border-white/20"
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '80vh',
-                    objectFit: 'contain',
-                    opacity: previewing ? 0.6 : 1,
-                    transition: 'opacity 0.2s',
-                  }}
-                />
-              ) : (
-                <div className="rounded-2xl bg-white/10 flex items-center justify-center" style={{ width: previewW, height: previewH }}>
-                  <p className="text-pink-200 text-sm">사진을 선택하세요</p>
+                  <img src={url} alt={`photo-${i}`} className="w-full aspect-video object-cover" style={{ transform: 'scaleX(-1)' }} />
+                  {isSelected && (
+                    <div className="absolute top-1 right-1 bg-yellow-400 text-black font-black text-xs w-6 h-6 rounded-full flex items-center justify-center shadow">
+                      {selIdx + 1}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              )
+            })}
           </div>
 
+          <div className="flex justify-center pb-1">
+            <button
+              onClick={handleConfirmSelect}
+              disabled={selected.length !== REQUIRED || generating}
+              className="bg-white text-purple-900 font-extrabold text-lg px-12 py-3.5 rounded-full shadow-xl disabled:opacity-40 hover:scale-105 active:scale-95 transition-all"
+            >
+              {generating ? '생성 중...' : `선택 완료 (${selected.length}/${REQUIRED})`}
+            </button>
+          </div>
         </div>
-      ) : (
-        <div className="flex flex-col items-center gap-4 pt-4 w-full px-4">
+      )}
+
+      {/* ── Phase: 미리보기 ── */}
+      {phase === 'preview' && (
+        <div className="flex flex-col items-center justify-center gap-4 p-5 h-full">
+          <p className="text-white text-xl font-black tracking-wide">미리보기</p>
+
+          <div className="flex gap-3 items-center">
+            {(Object.entries(THEMES) as [ColorTheme, typeof THEMES.pink][]).map(([key, t]) => (
+              <button
+                key={key}
+                onClick={() => setColorTheme(key)}
+                title={t.label}
+                className={`w-9 h-9 rounded-full border-4 transition-all ${colorTheme === key ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-50'}`}
+                style={{ backgroundColor: t.primary }}
+              />
+            ))}
+            {generating && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin ml-1" />}
+          </div>
+
+          <img
+            src={stripDataUrl}
+            alt="스트립 미리보기"
+            className="rounded-2xl shadow-2xl border-2 border-white/20 transition-opacity"
+            style={{ maxWidth: '100%', maxHeight: '68dvh', objectFit: 'contain', opacity: generating ? 0.5 : 1 }}
+          />
+
+          <div className="flex gap-4">
+            <button
+              onClick={() => setPhase('select')}
+              className="bg-white/20 text-white font-bold px-7 py-3 rounded-full border border-white/30 hover:bg-white/30 active:scale-95 transition-all"
+            >
+              ← 다시 선택
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || generating}
+              className="bg-white text-purple-900 font-extrabold px-9 py-3 rounded-full shadow-xl disabled:opacity-60 hover:scale-105 active:scale-95 transition-all"
+            >
+              {saving ? '저장 중...' : '저장하기 →'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Phase: 저장 완료 + QR ── */}
+      {phase === 'done' && (
+        <div className="flex flex-col items-center justify-center gap-5 p-4 h-full">
           <div className="text-center">
             <p className="text-pink-200 text-xs tracking-widest mb-1">자양교회 몽골 선교</p>
             <h1 className="text-white text-3xl font-black">완성!</h1>
           </div>
-          <div className={`px-5 py-2 rounded-full text-sm font-bold shadow-lg ${isCloudMode ? 'bg-green-400 text-green-900' : 'bg-yellow-400 text-yellow-900'}`}>
+
+          <div className={`px-4 py-1.5 rounded-full text-xs font-bold ${isCloudMode ? 'bg-green-400 text-green-900' : 'bg-yellow-400 text-yellow-900'}`}>
             {isCloudMode ? '🌐 온라인 — 어디서든 스캔 가능' : '📡 오프라인 — 핫스팟 연결 후 스캔'}
           </div>
-          <div className="flex flex-col md:flex-row gap-6 justify-center items-center md:items-start w-full max-w-3xl">
+
+          <div className="flex flex-col md:flex-row gap-5 items-center justify-center">
             <div className="flex flex-col items-center gap-3">
-              <img src={stripUrl} alt="strip" className="rounded-2xl shadow-2xl border-4 border-white/20" style={{ maxWidth: 220, maxHeight: 340, objectFit: 'contain' }} />
-              <a href={stripUrl} download="인생네컷.png" className="bg-white text-purple-900 font-extrabold text-base px-6 py-3 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-transform w-full text-center">
+              <img src={stripDataUrl} alt="strip" className="rounded-2xl shadow-2xl border-4 border-white/20" style={{ maxWidth: 200, maxHeight: 300, objectFit: 'contain' }} />
+              <a href={stripDataUrl} download="인생네컷.png" className="bg-white text-purple-900 font-extrabold px-6 py-3 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-transform w-full text-center text-sm">
                 📥 내 기기에 저장
               </a>
             </div>
-            <div className="bg-white rounded-3xl p-5 flex flex-col items-center gap-3 shadow-2xl">
+
+            <div className="bg-white rounded-3xl p-5 flex flex-col items-center gap-2 shadow-2xl">
               <p className="text-gray-700 text-sm font-bold">📱 폰으로 QR 스캔</p>
-              <QRCodeDisplay url={qrUrl} size={220} />
-              <p className="text-gray-500 text-xs text-center leading-relaxed">
-                {isCloudMode ? '인터넷만 있으면 어디서든 스캔 가능' : '노트북 핫스팟 연결 후 스캔'}<br />스캔하면 사진 저장 가능
+              <QRCodeDisplay url={qrUrl} size={200} />
+              <p className="text-gray-400 text-xs text-center">
+                {isCloudMode ? '인터넷만 있으면 어디서든' : '핫스팟 연결 후 스캔'}
               </p>
             </div>
           </div>
-          <a href="/" className="bg-white/20 text-white font-bold px-8 py-3 rounded-full hover:bg-white/30 transition-colors text-sm mt-2">
+
+          <a href="/" className="bg-white/20 text-white font-bold px-8 py-3 rounded-full hover:bg-white/30 active:scale-95 transition-all text-sm">
             처음으로 돌아가기
           </a>
         </div>
       )}
     </main>
+  )
+}
+
+export default function SelectPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gradient-to-br from-purple-900 via-pink-800 to-rose-700 flex items-center justify-center">
+        <p className="text-white text-lg">로딩 중...</p>
+      </main>
+    }>
+      <SelectPageContent />
+    </Suspense>
   )
 }

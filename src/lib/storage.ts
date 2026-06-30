@@ -18,7 +18,6 @@ export interface SessionData {
   id: string
   createdAt: string
   photoCount: number
-  videoFile?: string
   stripFile?: string
   status: 'capturing' | 'selecting' | 'complete'
 }
