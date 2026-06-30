@@ -167,7 +167,7 @@ function SelectPageContent() {
   const [isCloudMode, setIsCloudMode] = useState(false)
   const [localIP, setLocalIP] = useState('')
 
-  // 미리보기 진입 즉시 백그라운드 업로드 시작 — 저장하기 클릭 시 이미 완료되어 있을 가능성 높음
+  const photoUploadRef = useRef<Promise<void>>(Promise.resolve())
   const cloudUploadRef = useRef<{ dataUrl: string; promise: Promise<string | null> } | null>(null)
 
   useEffect(() => {
@@ -180,14 +180,16 @@ function SelectPageContent() {
       const dataUrls: string[] = JSON.parse(cached)
       setPhotos(dataUrls)
       sessionStorage.removeItem(`photos_${sessionId}`)
-      // 사용자가 사진 고르는 동안 백그라운드로 서버에 업로드
-      dataUrls.forEach((data, i) => {
-        fetch(`/api/sessions/${sessionId}/photo`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ photoIndex: i, data }),
-        })
-      })
+      // 사용자가 사진 고르는 동안 백그라운드로 서버에 업로드 — 완료 여부 추적
+      photoUploadRef.current = Promise.all(
+        dataUrls.map((data, i) =>
+          fetch(`/api/sessions/${sessionId}/photo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoIndex: i, data }),
+          })
+        )
+      ).then(() => {})
     } else {
       // 페이지 새로고침 등 — 서버에서 불러오기
       fetch(`/api/sessions/${sessionId}`)
@@ -310,8 +312,13 @@ function SelectPageContent() {
     return canvas.toDataURL('image/png')
   }, [selected, photos, colorTheme, layoutType])
 
+  const [generatingLabel, setGeneratingLabel] = useState('생성 중...')
+
   async function handleConfirmSelect() {
     setGenerating(true)
+    setGeneratingLabel('저장 중...')
+    await photoUploadRef.current
+    setGeneratingLabel('생성 중...')
     const dataUrl = await buildStrip()
     setStripDataUrl(dataUrl)
     setGenerating(false)
@@ -409,7 +416,7 @@ function SelectPageContent() {
               disabled={selected.length !== REQUIRED || generating}
               className="bg-white text-purple-900 font-extrabold text-lg px-12 py-3.5 rounded-full shadow-xl disabled:opacity-40 hover:scale-105 active:scale-95 transition-all"
             >
-              {generating ? '생성 중...' : `선택 완료 (${selected.length}/${REQUIRED})`}
+              {generating ? generatingLabel : `선택 완료 (${selected.length}/${REQUIRED})`}
             </button>
           </div>
         </div>
