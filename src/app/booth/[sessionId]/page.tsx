@@ -254,6 +254,9 @@ export default function BoothPage() {
     return () => cancelAnimationFrame(rafRef.current)
   }, [phase, layoutType])
 
+  // select 페이지 JS 번들 미리 다운로드 → 페이지 전환 즉시
+  useEffect(() => { router.prefetch(`/select/${sessionId}`) }, [router, sessionId])
+
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
       .then(stream => {
